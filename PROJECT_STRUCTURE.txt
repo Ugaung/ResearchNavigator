@@ -1,0 +1,17 @@
+ResearchNavigator 프로젝트 구성 파일 목록
+
+.gitignore
+GITHUB_UPLOAD_GUIDE.md
+LICENSE
+PROJECT_STRUCTURE.txt
+README.md
+app.py
+assets/KEEP_ASSETS_FOLDER.txt
+data/README_DATA_FILES.txt
+data/bookmarks.json
+data/users.json
+gitignore_visible_copy.txt
+logs/KEEP_LOGS_FOLDER.txt
+requirements.txt
+src/README_MODULES.md
+src/__init__.py

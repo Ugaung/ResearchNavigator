@@ -1,0 +1,15 @@
+streamlit
+requests
+feedparser
+pandas
+openpyxl
+numpy
+scikit-learn
+deep-translator
+scholarly
+beautifulsoup4
+lxml
+plotly
+networkx
+pymupdf
+urllib3
