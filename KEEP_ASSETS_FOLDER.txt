@@ -1,1 +1,1 @@
-이 폴더는 향후 스크린샷, 발표 이미지, 로고 등을 저장하기 위한 폴더입니다.
+This folder is reserved for project screenshots and assets.

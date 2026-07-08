@@ -11,5 +11,5 @@ beautifulsoup4
 lxml
 plotly
 networkx
-pymupdf
+PyMuPDF
 urllib3

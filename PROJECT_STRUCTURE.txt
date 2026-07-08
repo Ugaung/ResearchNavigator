@@ -1,17 +1,26 @@
-ResearchNavigator 프로젝트 구성 파일 목록
-
-.gitignore
-GITHUB_UPLOAD_GUIDE.md
-LICENSE
-PROJECT_STRUCTURE.txt
-README.md
-app.py
-assets/KEEP_ASSETS_FOLDER.txt
-data/README_DATA_FILES.txt
-data/bookmarks.json
-data/users.json
-gitignore_visible_copy.txt
-logs/KEEP_LOGS_FOLDER.txt
-requirements.txt
-src/README_MODULES.md
-src/__init__.py
+ResearchNavigator_v2_REAL_Checked/
+├─ app.py
+├─ README.md
+├─ requirements.txt
+├─ LICENSE
+├─ .gitignore
+├─ gitignore_visible_copy.txt
+├─ GITHUB_UPLOAD_GUIDE.md
+├─ PROJECT_STRUCTURE.txt
+├─ VERIFICATION_REPORT.md
+├─ data/
+│  ├─ users.json
+│  └─ bookmarks.json
+├─ logs/
+│  └─ KEEP_LOGS_FOLDER.txt
+├─ assets/
+│  └─ KEEP_ASSETS_FOLDER.txt
+└─ src/
+   ├─ __init__.py
+   ├─ chemeng_dashboard.py
+   ├─ chemeng_tags.py
+   ├─ trend_analysis.py
+   ├─ keyword_network.py
+   ├─ recommendation.py
+   ├─ pdf_analyzer.py
+   └─ README_MODULES.md

@@ -1,11 +1,6 @@
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 .env
-.venv/
-venv/
 network_errors.log
 logs/*.log
-.DS_Store
-.ipynb_checkpoints/
+# Keep example JSON files, but do not upload real personal data.

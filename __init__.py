@@ -1,1 +1,1 @@
-"""ResearchNavigator helper package placeholder."""
+"""ResearchNavigator v2 analysis modules."""

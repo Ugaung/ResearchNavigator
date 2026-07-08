@@ -23,6 +23,12 @@ import pandas as pd
 from io import BytesIO
 from deep_translator import GoogleTranslator
 import plotly.express as px
+
+# ResearchNavigator v2: chemical engineering analysis modules
+try:
+    from src.chemeng_dashboard import render_chemeng_dashboard
+except Exception as _chemeng_import_error:
+    render_chemeng_dashboard = None
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -1645,188 +1651,6 @@ class LocalSummaryService:
             "ko": summary_ko
         }
 
-
-
-# =========================================================
-# GitHub 공개용 고급 분석 기능
-# - AI 유사 논문 추천
-# - 연도별 논문 트렌드 분석
-# - 키워드 네트워크 시각화
-# - PDF 업로드 요약
-# =========================================================
-def papers_to_dataframe(papers: List[Paper]) -> pd.DataFrame:
-    rows = []
-    for p in papers or []:
-        rows.append({
-            "title": p.title,
-            "source": p.source,
-            "year": p.year,
-            "journal": p.journal,
-            "authors": ", ".join(p.authors[:5]) if p.authors else "",
-            "citation_count": p.citation_count or 0,
-            "abstract": p.abstract or "",
-            "url": p.url or "",
-            "doi": p.doi or "",
-        })
-    return pd.DataFrame(rows)
-
-
-def render_trend_analysis(papers: List[Paper]):
-    df = papers_to_dataframe(papers)
-    if df.empty or "year" not in df.columns:
-        st.info("분석할 검색 결과가 없습니다.")
-        return
-    trend_df = df.dropna(subset=["year"]).copy()
-    if trend_df.empty:
-        st.info("연도 정보가 있는 논문이 없어 트렌드 분석을 할 수 없습니다.")
-        return
-    trend_df["year"] = trend_df["year"].astype(int)
-    count_df = trend_df.groupby("year").size().reset_index(name="paper_count")
-    fig = px.line(count_df, x="year", y="paper_count", markers=True,
-                  title="연도별 검색 논문 수 변화")
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption("검색 결과에 포함된 논문의 연도 정보를 기준으로 연구량 변화를 시각화합니다.")
-
-
-def recommend_similar_papers(papers: List[Paper], target_index: int, top_n: int = 5) -> pd.DataFrame:
-    if not papers or len(papers) < 2:
-        return pd.DataFrame()
-    documents = []
-    for p in papers:
-        documents.append(" ".join([p.title or "", p.abstract or "", p.journal or ""]))
-    try:
-        vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
-        X = vectorizer.fit_transform(documents)
-        target_vec = X[target_index]
-        scores = (X @ target_vec.T).toarray().ravel()
-        ranked = sorted([(i, s) for i, s in enumerate(scores) if i != target_index], key=lambda x: x[1], reverse=True)
-        rows = []
-        for i, score in ranked[:top_n]:
-            p = papers[i]
-            rows.append({
-                "추천순위": len(rows) + 1,
-                "유사도": round(float(score), 3),
-                "제목": p.title,
-                "연도": p.year or "정보 없음",
-                "출처": p.source,
-                "인용수": p.citation_count or 0,
-                "URL": p.url or "",
-            })
-        return pd.DataFrame(rows)
-    except Exception as e:
-        record_network_error("recommend_similar_papers", e)
-        return pd.DataFrame()
-
-
-def render_recommendation_tool(papers: List[Paper]):
-    if not papers or len(papers) < 2:
-        st.info("추천 기능은 검색 결과가 2개 이상일 때 사용할 수 있습니다.")
-        return
-    titles = [f"{i+1}. {p.title[:90]}" for i, p in enumerate(papers)]
-    selected = st.selectbox("기준 논문을 선택하세요", titles, key="recommend_base_paper")
-    target_idx = titles.index(selected)
-    top_n = st.slider("추천 개수", 3, 10, 5, key="recommend_top_n")
-    rec_df = recommend_similar_papers(papers, target_idx, top_n=top_n)
-    if rec_df.empty:
-        st.warning("추천 결과를 만들 수 없습니다. 초록이 부족하거나 텍스트 정보가 너무 적을 수 있습니다.")
-    else:
-        st.dataframe(rec_df, use_container_width=True)
-        st.caption("제목·초록·저널 정보를 TF-IDF 벡터로 변환한 뒤 유사도가 높은 논문을 추천합니다.")
-
-
-def render_keyword_network(papers: List[Paper]):
-    texts = []
-    for p in papers or []:
-        texts.append(" ".join([p.title or "", p.abstract or ""]))
-    joined = " ".join(texts)
-    tokens = tokenize_for_keywords(joined)
-    if len(tokens) < 5:
-        st.info("키워드 네트워크를 만들 텍스트가 부족합니다.")
-        return
-    freq = Counter(tokens)
-    top_keywords = [w for w, _ in freq.most_common(20)]
-    edges = Counter()
-    for p in papers:
-        doc_tokens = set([t for t in tokenize_for_keywords((p.title or "") + " " + (p.abstract or "")) if t in top_keywords])
-        doc_tokens = list(doc_tokens)
-        for i in range(len(doc_tokens)):
-            for j in range(i + 1, len(doc_tokens)):
-                a, b = sorted([doc_tokens[i], doc_tokens[j]])
-                edges[(a, b)] += 1
-    if not edges:
-        st.info("키워드 사이의 연결 관계가 충분하지 않습니다.")
-        return
-    try:
-        import networkx as nx
-        G = nx.Graph()
-        for kw in top_keywords:
-            G.add_node(kw, size=freq[kw])
-        for (a, b), weight in edges.items():
-            if weight >= 1:
-                G.add_edge(a, b, weight=weight)
-        pos = nx.spring_layout(G, seed=42, k=0.6)
-        edge_x, edge_y = [], []
-        for a, b in G.edges():
-            x0, y0 = pos[a]
-            x1, y1 = pos[b]
-            edge_x += [x0, x1, None]
-            edge_y += [y0, y1, None]
-        import plotly.graph_objects as go
-        edge_trace = go.Scatter(x=edge_x, y=edge_y, line=dict(width=0.7), hoverinfo="none", mode="lines")
-        node_x, node_y, node_text, node_size = [], [], [], []
-        for node in G.nodes():
-            x, y = pos[node]
-            node_x.append(x)
-            node_y.append(y)
-            node_text.append(f"{node} ({freq[node]})")
-            node_size.append(10 + min(freq[node], 30))
-        node_trace = go.Scatter(
-            x=node_x, y=node_y, mode="markers+text", text=list(G.nodes()), textposition="top center",
-            hovertext=node_text, hoverinfo="text", marker=dict(size=node_size, showscale=False)
-        )
-        fig = go.Figure(data=[edge_trace, node_trace])
-        fig.update_layout(title="검색 결과 기반 키워드 네트워크", showlegend=False,
-                          margin=dict(l=20, r=20, t=50, b=20))
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("검색 결과의 제목과 초록에서 자주 등장하는 키워드가 같은 논문 안에서 함께 등장하면 연결합니다.")
-    except Exception as e:
-        st.warning(f"키워드 네트워크 생성 중 오류가 발생했습니다: {e}")
-        st.write("상위 키워드:", ", ".join(top_keywords))
-
-
-def extract_text_from_uploaded_pdf(uploaded_file) -> str:
-    if uploaded_file is None:
-        return ""
-    data = uploaded_file.read()
-    try:
-        import fitz  # PyMuPDF
-        doc = fitz.open(stream=data, filetype="pdf")
-        pages = []
-        for page in doc[:10]:
-            pages.append(page.get_text())
-        return clean_text("\n".join(pages))
-    except Exception as e:
-        return f"PDF 텍스트 추출 실패: {e}"
-
-
-def render_pdf_upload_analyzer():
-    uploaded = st.file_uploader("PDF 논문 파일 업로드", type=["pdf"], key="pdf_analyzer_upload")
-    if uploaded is None:
-        st.caption("PDF 파일을 올리면 앞부분 텍스트를 추출하고 간단한 요약을 생성합니다.")
-        return
-    with st.spinner("PDF에서 텍스트를 추출하는 중입니다..."):
-        text = extract_text_from_uploaded_pdf(uploaded)
-    if not text or text.startswith("PDF 텍스트 추출 실패"):
-        st.error(text or "PDF 텍스트를 추출하지 못했습니다.")
-        return
-    preview = text[:5000]
-    st.write("**추출 텍스트 미리보기**")
-    st.text_area("PDF Text Preview", preview[:2500], height=220)
-    if st.button("PDF 내용 요약하기", key="pdf_summary_btn"):
-        summary = extractive_summarize(title=uploaded.name, abstract=preview, line_count=5, query="")
-        st.write("**요약**")
-        st.success(translate_summary_to_korean(summary))
-
 # =========================================================
 # 서비스 인스턴스
 # =========================================================
@@ -2564,10 +2388,21 @@ def render_main_app():
             st.rerun()
 
     st.sidebar.header("회원 메뉴")
-    page = st.sidebar.radio("이동", ["논문 검색", "마이페이지"])
+    page = st.sidebar.radio("이동", ["논문 검색", "마이페이지", "화학공학 분석"])
 
     if page == "마이페이지":
         render_mypage(username)
+        return
+
+    if page == "화학공학 분석":
+        if render_chemeng_dashboard is None:
+            st.error("화학공학 분석 모듈을 불러오지 못했습니다. src 폴더와 requirements.txt를 확인해주세요.")
+        else:
+            user_bookmarks = bookmark_manager.get_user_bookmarks(username)
+            render_chemeng_dashboard(
+                papers=st.session_state.get("papers", []),
+                bookmarks=user_bookmarks,
+            )
         return
 
     # -------------------------
@@ -2698,19 +2533,6 @@ def render_main_app():
         papers = sort_papers(papers, sort_map[sort_option_label])
         st.success(f"총 {len(papers)}개의 논문을 찾았습니다.")
 
-        st.markdown("### 🔬 고급 분석 도구")
-        adv_tab1, adv_tab2, adv_tab3, adv_tab4 = st.tabs([
-            "연도별 트렌드", "AI 유사 논문 추천", "키워드 네트워크", "PDF 업로드 분석"
-        ])
-        with adv_tab1:
-            render_trend_analysis(papers)
-        with adv_tab2:
-            render_recommendation_tool(papers)
-        with adv_tab3:
-            render_keyword_network(papers)
-        with adv_tab4:
-            render_pdf_upload_analyzer()
-
         for idx, paper in enumerate(papers, start=1):
             with st.container():
                 st.markdown("---")
@@ -2832,10 +2654,6 @@ def render_main_app():
 - 논문 페이지에서 그림/도표 등 시각자료 수집 후 브라우저 내 미리보기
 - 북마크 상세에서 PDF 브라우저 내 열람
 - Semantic Scholar 기반 인용수 자동 보강
-- 검색 결과 기반 AI 유사 논문 추천
-- 연도별 논문 트렌드 분석 그래프
-- 키워드 네트워크 시각화
-- PDF 업로드 후 텍스트 추출 및 요약
 """
     )
 
